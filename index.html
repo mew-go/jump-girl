@@ -1,17 +1,12 @@
-<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>JUMP GIRL</title>
-</head><body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
 <style>
   /* Layout: nothing but the game, centered on a white field. Strict black & white. */
   :root { --paper: #ffffff; --ink: #1c1c1c; --ink-faint: #a3a3a3; color-scheme: light; }
-  html, body { height: 100%; margin: 0; }
+  html, body { height: 100%; }
   body {
     background: var(--paper); color: var(--ink);
     padding-inline: 0; padding-block: 0;
@@ -52,7 +47,7 @@
   <p id="lyric" aria-live="off"></p>
   <canvas id="game"></canvas>
   <ul class="howto">
-    <li>Tap to start</li>
+    <li>Tap to start music</li>
     <li>Tap to jump</li>
     <li>Hold to jump higher</li>
     <li>Go for a high score!</li>
@@ -224,6 +219,24 @@
 
   // ---------- sound (starts after first interaction) ----------
   let audio = null;
+  // iPhone: let the sound play even when the silent (manner-mode) switch is on.
+  let silentKeeper = null;
+  function unlockSilentSwitch() {
+    try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch {}  // iOS 17+
+    if (silentKeeper) return;
+    try {  // older iOS: a looping silent <audio> puts the page in "playback" mode
+      const n = 4000, b = new Uint8Array(44 + n), v = new DataView(b.buffer);
+      const w = (o, t) => [...t].forEach((c, i) => b[o + i] = c.charCodeAt(0));
+      w(0, "RIFF"); v.setUint32(4, 36 + n, true); w(8, "WAVEfmt ");
+      v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+      v.setUint32(24, 8000, true); v.setUint32(28, 8000, true);
+      v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+      w(36, "data"); v.setUint32(40, n, true); b.fill(128, 44);
+      silentKeeper = new Audio(URL.createObjectURL(new Blob([b], { type: "audio/wav" })));
+      silentKeeper.loop = true; silentKeeper.setAttribute("playsinline", "");
+      const p = silentKeeper.play(); if (p && p.catch) p.catch(() => { silentKeeper = null; });
+    } catch { silentKeeper = null; }
+  }
   function ctxAudio() {
     audio = audio || new (window.AudioContext || window.webkitAudioContext)();
     if (audio.state === "suspended") audio.resume();
@@ -306,6 +319,7 @@
 
   // ---------- input ----------
   function press() {
+    unlockSilentSwitch();
     if (mode === "ready") startBgm();
     if (mode === "ready") { mode = "run"; doJump(); return; }
     if (mode === "over") {
@@ -335,6 +349,8 @@
   });
   document.addEventListener("contextmenu", e => e.preventDefault());
   window.addEventListener("pointerup", release);
+  window.addEventListener("touchend", unlockSilentSwitch);  // some iOS versions only allow audio on touchend
+  autoBtn.addEventListener("click", unlockSilentSwitch);
   window.addEventListener("pointercancel", release);
 
   // ---------- spawning ----------
@@ -617,4 +633,5 @@
   (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(() => requestAnimationFrame(frame));
 })();
 </script>
+
 </body></html>
