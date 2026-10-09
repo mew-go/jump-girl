@@ -242,9 +242,18 @@
     if (audio.state === "suspended") audio.resume();
     return audio;
   }
+  // first play only: sound fades in so nobody gets startled (e.g. phone was in silent mode)
+  const FADE_IN = 2.5;
+  let fadeInT0 = null, bgmFirstDone = false;
+  function fadeInLevel() {
+    if (!audio || fadeInT0 === null) return 1;
+    return Math.min(1, Math.max(.1, (audio.currentTime - fadeInT0) / FADE_IN));
+  }
   function beep(freq, dur, type = "square", vol = .05) {
     try {
       const a = ctxAudio();
+      if (fadeInT0 === null && !bgmFirstDone) fadeInT0 = a.currentTime;
+      vol *= fadeInLevel();
       const o = a.createOscillator(), g = a.createGain();
       o.type = type; o.frequency.value = freq;
       g.gain.setValueAtTime(vol, a.currentTime);
@@ -280,7 +289,12 @@
     const src = a.createBufferSource();
     src.buffer = bgmBuffer; src.loop = true;
     src.loopStart = bgmPad; src.loopEnd = bgmPad + BGM_SECONDS;
-    bgmGain = a.createGain(); bgmGain.gain.value = .5;
+    bgmGain = a.createGain();
+    if (!bgmFirstDone) {   // first time: rise from silence; retries start at full volume
+      bgmFirstDone = true; fadeInT0 = a.currentTime;
+      bgmGain.gain.setValueAtTime(0, a.currentTime);
+      bgmGain.gain.linearRampToValueAtTime(.5, a.currentTime + FADE_IN);
+    } else bgmGain.gain.value = .5;
     src.connect(bgmGain).connect(a.destination);
     src.start(0, bgmPad);
     bgmSrc = src; bgmT0 = a.currentTime; lyricShown = null;
