@@ -424,8 +424,23 @@
   function songTime() { return bgmT0 !== null && audio ? audio.currentTime - bgmT0 : runT; }
   const runVel = () => speed * (W / 200);
   const flagTravel = () => (W + 4 - girl.x - 8) / runVel();
+  // how many times the run has been finished, by everyone (a free shared counter: abacus.jasoncameron.dev).
+  // a real clear adds one; an auto-play clear only reads the number. If the counter can't be reached the line just isn't shown.
+  const CLEAR_COUNTER = "https://abacus.jasoncameron.dev/%s/mewgo-jumpgirl/clears";
+  let totalClears = null;
+  function countClear(add) {
+    totalClears = null;
+    try {
+      const ctl = new AbortController(); setTimeout(() => ctl.abort(), 5000);
+      fetch(CLEAR_COUNTER.replace("%s", add ? "hit" : "get"), { signal: ctl.signal, cache: "no-store" })
+        .then(r => r.ok ? r.json() : null)
+        .then(j => { if (j && typeof j.value === "number") totalClears = j.value; })
+        .catch(() => {});
+    } catch {}
+  }
   function celebrate() {
     mode = "goal"; goalT = 0;
+    countClear(!auto);
     if (score > hi && !auto) { hi = score; store.set(hi); }
     stopBgm(8);   // the song fades out slowly while she celebrates
     [784, 988, 1175, 1568].forEach((f, i) => setTimeout(() => beep(f, .14, "square", .05), i * 110));
@@ -628,6 +643,11 @@
       ctx.font = `${fs * .9}px DotGothic16, monospace`;
       say(`SCORE ${pad5(score)}`, scale * 27);
       if (goalT > 1.5) say("TAP TO PLAY AGAIN", scale * 35);
+      if (totalClears !== null) {   // small and grey: everyone's clears so far
+        ctx.font = `${fs * .65}px DotGothic16, monospace`; ctx.fillStyle = GREY;
+        say(`TOTAL CLEARS ${totalClears.toLocaleString("en-US")}`, scale * 43);
+        ctx.fillStyle = INK;
+      }
     }
     if (mode === "over") {
       ctx.fillStyle = INK;
