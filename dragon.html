@@ -129,7 +129,7 @@ canvas{display:block}
   <div class="stick" id="stick"><i id="knob"></i></div>
   <div class="ctl">
     <button class="btn b-sp" id="bSp" aria-label="必殺技 椿乱舞"><div class="fill" id="spFill"></div><span>椿</span><em class="k">L</em></button>
-    <button class="btn b-dash" id="bDash" aria-label="ダッシュ">≫<em class="k">K</em></button>
+    <button class="btn b-dash" id="bDash" aria-label="ジャンプ">跳<em class="k">K</em></button>
     <button class="btn b-atk" id="bAtk" aria-label="攻撃">斬<em class="k">J</em></button>
   </div>
   <div class="ov" id="startOv">
@@ -140,7 +140,7 @@ canvas{display:block}
       <div class="keys">
         <b>移動</b><span>WASD / 矢印 ・ 画面左をドラッグ</span>
         <b>斬る</b><span>J / Space ・ 押しっぱなしで連撃</span>
-        <b>ダッシュ</b><span>K / Shift ・ 無敵で突進</span>
+        <b>ジャンプ</b><span>K / Shift ・ 跳んでいる間は無敵</span>
         <b>椿乱舞</b><span>L / E ・ ゲージ満タンで全体攻撃</span>
       </div>
       <button class="go" id="startBtn">狩りを始める</button>
@@ -250,7 +250,7 @@ let ac=null;
 function sfx(type){
   if(!ac)return;const t=ac.currentTime;
   const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);
-  const P={hit:['square',520,180,.06,.07],crit:['square',880,220,.09,.09],swing:['triangle',300,700,.04,.05],dash:['sawtooth',200,900,.05,.12],
+  const P={hit:['square',520,180,.06,.07],crit:['square',880,220,.09,.09],swing:['triangle',300,700,.04,.05],dash:['sawtooth',200,900,.05,.12],jump:['triangle',420,1100,.06,.16],land:['square',180,60,.08,.14],
     hurt:['sawtooth',160,60,.1,.2],boom:['sawtooth',120,30,.18,.7],kill:['triangle',660,1320,.05,.12],fire:['sawtooth',90,50,.06,.3],heal:['sine',500,1000,.06,.2]}[type];
   o.type=P[0];o.frequency.setValueAtTime(P[1],t);o.frequency.exponentialRampToValueAtTime(P[2],t+P[4]);
   g.gain.setValueAtTime(P[3],t);g.gain.exponentialRampToValueAtTime(0.0001,t+P[4]);o.start(t);o.stop(t+P[4]+0.02);
@@ -409,11 +409,11 @@ function buildDragon(t){
 /* ---------- game state ---------- */
 let S;const enemies=[],shots=[],orbs=[];
 const P={x:0,z:0,face:0,hp:1000,max:1000,inv:0,atkT:0,atkStep:0,atkQueued:false,atkHit:false,chainT:0,
-  dashT:0,dashCd:0,dx:0,dz:0,hitSet:null,hurtFlash:0};
+  py:0,vy:0,air:false,hurtFlash:0};
 function reset(){
   enemies.forEach(e=>{scene.remove(e.v.g);if(e.cone)scene.remove(e.cone);});enemies.length=0;
   shots.forEach(s=>scene.remove(s.m));shots.length=0;orbs.forEach(o=>scene.remove(o.m));orbs.length=0;
-  Object.assign(P,{x:0,z:6,face:0,hp:1000,inv:0,atkT:0,atkStep:0,atkQueued:false,chainT:0,dashT:0,dashCd:0});
+  Object.assign(P,{x:0,z:6,face:0,hp:1000,inv:0,atkT:0,atkStep:0,atkQueued:false,chainT:0,py:0,vy:0,air:false});
   S={wave:0,toSpawn:0,spawnT:0,alive:0,score:0,combo:0,comboT:0,maxCombo:0,kills:0,sp:0,
      slow:0,stop:0,shake:0,running:true,waveDelay:1,boss:null,time:0};
   $('bossBox').hidden=true;
@@ -446,7 +446,7 @@ const keys={};
 addEventListener('keydown',e=>{keys[e.code]=true;
   if(!S||!S.running)return;
   if(['KeyJ','Space'].includes(e.code)){e.preventDefault();pressAtk();}
-  if(['KeyK','ShiftLeft','ShiftRight'].includes(e.code))pressDash();
+  if(['KeyK','ShiftLeft','ShiftRight'].includes(e.code))pressJump();
   if(['KeyL','KeyE'].includes(e.code))pressSp();
 });
 addEventListener('keyup',e=>{keys[e.code]=false;});
@@ -457,7 +457,7 @@ function bindBtn(el,down,up){
   el.addEventListener('pointerup',u);el.addEventListener('pointercancel',u);el.addEventListener('pointerleave',u);
 }
 bindBtn($('bAtk'),()=>{atkHeld=true;pressAtk();},()=>atkHeld=false);
-bindBtn($('bDash'),()=>pressDash());
+bindBtn($('bDash'),()=>pressJump());
 bindBtn($('bSp'),()=>pressSp());
 // virtual stick
 const stick=$('stick'),knob=$('knob');let stickId=null,sx=0,sy=0,jx=0,jz=0;
@@ -484,12 +484,10 @@ app.addEventListener('pointermove',e=>{
 const endStick=e=>{if(e.pointerId!==stickId)return;stickId=null;jx=jz=0;resetStick();};
 app.addEventListener('pointerup',endStick);app.addEventListener('pointercancel',endStick);
 
-function pressAtk(){if(P.dashT>0)return;if(P.atkT>0)P.atkQueued=true;else doAttack();}
-function pressDash(){
-  if(P.dashCd>0)return;let dx=moveX,dz=moveZ;
-  if(Math.hypot(dx,dz)<.2){dx=-Math.sin(P.face);dz=-Math.cos(P.face);}
-  const l=Math.hypot(dx,dz);P.dx=dx/l;P.dz=dz/l;P.dashT=.2;P.dashCd=.55;P.inv=Math.max(P.inv,.3);P.atkT=0;P.hitSet=new Set();
-  P.face=Math.atan2(-P.dx,-P.dz);sfx('dash');
+function pressAtk(){if(P.atkT>0)P.atkQueued=true;else doAttack();}
+function pressJump(){ // 無敵ジャンプ：跳んでいる間はダメージを受けない
+  if(P.air)return;P.air=true;P.vy=14;P.py=0.01;sfx('jump');
+  burst(P.x,.3,P.z,8,0xffffff,4,1,1);ringFx(P.x,P.z,.5,2.5,0xffc4dc,.3);
 }
 function pressSp(){
   if(S.sp<100)return;S.sp=0;S.slow=1.1;S.shake=.8;flash(.9);sfx('boom');
@@ -626,7 +624,7 @@ function update(rdt){
   let kx=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
   let kz=(keys.KeyS||keys.ArrowDown?1:0)-(keys.KeyW||keys.ArrowUp?1:0);
   moveX=kx||jx;moveZ=kz||jz;const ml=Math.hypot(moveX,moveZ);if(ml>1){moveX/=ml;moveZ/=ml;}
-  if(S.running&&(atkHeld||keys.KeyJ||keys.Space)&&P.atkT<=0&&P.dashT<=0)doAttack();
+  if(S.running&&(atkHeld||keys.KeyJ||keys.Space)&&P.atkT<=0)doAttack();
 
   // waves
   if(S.running){
@@ -635,20 +633,27 @@ function update(rdt){
   }
 
   // player
-  P.inv-=dt;P.dashCd-=dt;P.chainT-=dt;P.hurtFlash-=dt;
+  P.inv-=dt;P.chainT-=dt;P.hurtFlash-=dt;
   if(S.running){
-    if(P.dashT>0){P.dashT-=dt;P.x+=P.dx*30*dt;P.z+=P.dz*30*dt;
-      burst(P.x,1,P.z,1,0xbff3ff,2,1,1);
-      for(const e of enemies){if(e.dead||P.hitSet.has(e))continue;if(Math.hypot(e.x-P.x,e.z-P.z)<e.rad+1.3){P.hitSet.add(e);hitEnemy(e,rnd(220,300),P.dx*6,P.dz*6,4,'');}}
-    }else if(P.atkT>0){
+    if(P.air){
+      P.inv=Math.max(P.inv,.12);P.vy-=34*dt;P.py+=P.vy*dt;
+      if(P.atkT<=0&&ml>.1)P.face=Math.atan2(-moveX,-moveZ);
+      if(P.py<=0){ // 着地：まわりの竜を少し押し返す
+        P.py=0;P.vy=0;P.air=false;sfx('land');S.shake=Math.max(S.shake,.15);
+        ringFx(P.x,P.z,.5,3.2,0xffffff,.3);burst(P.x,.3,P.z,10,0xffffff,5,1,1);
+        for(const e of enemies){if(e.dead)continue;const d=Math.hypot(e.x-P.x,e.z-P.z);
+          if(d-e.rad<2.6){const k=(e.x-P.x)/(d||1),kz=(e.z-P.z)/(d||1);hitEnemy(e,rnd(140,200),k*7,kz*7,3,'');}}
+      }
+    }
+    if(P.atkT>0){
       const total=P.curStep===2?.3:.2;P.atkT-=dt;
       if(!P.atkHit&&P.atkT<total-.05){P.atkHit=true;applyAttackHit();}
       if(P.atkT<=0&&P.atkQueued){P.atkQueued=false;doAttack();}
-      // slight movement while attacking
-      P.x+=moveX*2.5*dt;P.z+=moveZ*2.5*dt;
+      // slight movement while attacking (full speed in the air)
+      const asp=P.air?9.5:2.5;P.x+=moveX*asp*dt;P.z+=moveZ*asp*dt;
     }else if(ml>.1){
-      // crowded = slower
-      let crowd=0;for(const e of enemies)if(!e.dead&&Math.hypot(e.x-P.x,e.z-P.z)<e.rad+1.5)crowd++;
+      // crowded = slower (not in the air)
+      let crowd=0;if(!P.air)for(const e of enemies)if(!e.dead&&Math.hypot(e.x-P.x,e.z-P.z)<e.rad+1.5)crowd++;
       const sp=9/(1+crowd*.12);
       P.x+=moveX*sp*dt;P.z+=moveZ*sp*dt;P.face=Math.atan2(-moveX,-moveZ);
     }
@@ -656,16 +661,17 @@ function update(rdt){
   const pr=Math.hypot(P.x,P.z);if(pr>R-1){P.x*=(R-1)/pr;P.z*=(R-1)/pr;}
 
   // hero pose
-  hero.position.set(P.x,0,P.z);
+  hero.position.set(P.x,P.py,P.z);
   let dA=P.face-hero.rotation.y;dA=Math.atan2(Math.sin(dA),Math.cos(dA));hero.rotation.y+=dA*Math.min(1,rdt*25);
-  const walk=(ml>.1&&P.atkT<=0&&P.dashT<=0)?Math.sin(S.time*14):0;
-  legL.rotation.x=walk*.6;legR.rotation.x=-walk*.6;armL.rotation.x=-walk*.5;
-  const flow=P.dashT>0?.9:(ml>.1?.35+Math.abs(walk)*.1:.05+Math.sin(S.time*2)*.03);hairBack.rotation.x+=(-flow-hairBack.rotation.x)*Math.min(1,rdt*10);
+  const walk=(ml>.1&&P.atkT<=0&&!P.air)?Math.sin(S.time*14):0;
+  if(P.air){legL.rotation.x=-.7;legR.rotation.x=.35;armL.rotation.x=-.4;armL.rotation.z=-.5;}
+  else{legL.rotation.x=walk*.6;legR.rotation.x=-walk*.6;armL.rotation.x=-walk*.5;armL.rotation.z=0;}
+  const flow=P.air?(P.vy>0?-.25:.8):(ml>.1?.35+Math.abs(walk)*.1:.05+Math.sin(S.time*2)*.03);hairBack.rotation.x+=(-flow-hairBack.rotation.x)*Math.min(1,rdt*10);
   if(P.atkT>0){const total=P.curStep===2?.3:.2;const k=1-P.atkT/total;
     if(P.curStep===0){armR.rotation.set(-1.4,0,0);armR.rotation.z=1.2-k*2.6;}
     else if(P.curStep===1){armR.rotation.set(-1.4,0,0);armR.rotation.z=-1.4+k*2.6;}
-    else{armR.rotation.set(-2.6+k*2.9,0,0);hero.position.y=Math.sin(k*Math.PI)*.6;}
-  }else if(P.dashT>0){armR.rotation.set(-.3,0,.9);hero.rotation.x=0;}
+    else{armR.rotation.set(-2.6+k*2.9,0,0);hero.position.y=P.py+Math.sin(k*Math.PI)*.6;}
+  }else if(P.air){armR.rotation.set(-.6,0,.7);}
   else{armR.rotation.set(walk*.5-.2,0,.15);}
   hero.visible=!(P.inv>0&&P.hurtFlash>0&&Math.floor(S.time*40)%2===0);
   heroRing.position.set(P.x,.04,P.z);heroLight.position.set(P.x,3,P.z);
