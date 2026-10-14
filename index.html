@@ -724,7 +724,12 @@
     e.preventDefault();
     unlockSilentSwitch();
     if (audio && audio.state === "suspended") audio.resume();
-    if (mode === "ready") { if (girlReady >= 6) start(); }
+    if (mode === "ready") {
+      const q = toLogical(e);
+      const b = menuButtons().find(b => q.x >= b.x - 4 && q.x <= b.x + b.w + 4 && q.y >= b.y - 4 && q.y <= b.y + b.h + 4);
+      if (b) pickStage(b.id);
+      return;
+    }
     else if (mode === "over" && modeT > .9) start();
     else if (mode === "clear" && clearT > 2.5) { goStage2(); return; }
     const p = toLogical(e);
@@ -750,11 +755,12 @@
     keys[e.code] = true;
     if (e.code === "Space" || e.code === "Enter") {
       e.preventDefault(); unlockSilentSwitch();
-      if (mode === "ready" && girlReady >= 6) start();
+      if (mode === "ready") pickStage(1);
       else if (mode === "over" && modeT > .9) start();
       else if (mode === "clear" && clearT > 2.5) goStage2();
     }
   });
+  window.addEventListener("keydown", e => { if (mode === "ready" && (e.code === "Digit1" || e.code === "Digit2")) pickStage(e.code === "Digit1" ? 2 : 1); });
   window.addEventListener("keyup", e => { keys[e.code] = false; });
   document.addEventListener("visibilitychange", () => {
     if (!audio) return;
@@ -769,6 +775,7 @@
       if (bgmT0 !== null && audio && audio.state === "running") runT = audio.currentTime - bgmT0; else runT += dt;
     }
     modeT += dt;
+    howtoEl.style.visibility = mode === "ready" ? "hidden" : "visible";
     syncLyric();
     shake = Math.max(0, shake - dt * 18);
     flash = Math.max(0, flash - dt);
@@ -781,7 +788,7 @@
     stars.forEach(s => { s.x -= [6, 18, 70][s.l] * sdt * (mode === "ready" ? .5 : 1); if (s.x < -4) { s.x = W + 4; s.y = rnd(0, H); } });
     bgPetals.forEach(p => { p.x -= 10 * p.s * sdt; p.y += Math.sin(animT + p.a) * 4 * sdt; p.a += sdt; if (p.x < -10) { p.x = W + 10; p.y = rnd(0, H); } });
 
-    if (mode === "ready") { player.y = H / 2 + Math.sin(animT * 2) * 4; player.x = W * .2; }
+    if (mode === "ready") { player.y = H * .2 + Math.sin(animT * 2) * 4; player.x = W / 2; }
 
     if (mode === "play") {
       // timeline
@@ -923,6 +930,18 @@
       if (score > hi) { hi = score; store.set(hi); }
     }
   }
+
+  // ---------- stage select (title screen) ----------
+  function menuButtons() {   // top: JUMP GIRL SHOOTING, bottom: JUMP GIRL
+    const w = Math.min(W - 40, 170), h = 30, x = W / 2 - w / 2;
+    return [{ id: 1, x, y: H / 2 - h - 5, w, h }, { id: 2, x, y: H / 2 + 5, w, h }];
+  }
+  function pickStage(n) {
+    if (girlReady < 6) return;
+    pressed = { id: n, t: 0 };
+    if (n === 1) start(); else goStage2();
+  }
+  let pressed = null;
 
   // ---------- stage 2: the original JUMP GIRL runner, loaded in place ----------
   function goStage2() {
@@ -1125,10 +1144,11 @@
 
     // screens
     if (mode === "ready") {
-      text("JUMP GIRL", W / 2, H * .3, 22, "#ffffff", "center", "#e8304f");
-      text("STAGE 1", W / 2, H * .3 + 17, 11, "#ffe066");
-      if (Math.floor(animT * 2) % 2 === 0) text(girlReady >= 6 ? "TAP TO START" : "LOADING…", W / 2, H * .72, 10, "#ffffff");
-      if (hi) text("HI " + hi, W / 2, H * .82, 7, "#b9a6d9");
+      for (const b of menuButtons()) {
+        ctx.strokeStyle = "rgba(255,255,255,.28)"; ctx.lineWidth = .8;
+        ctx.beginPath(); ctx.roundRect ? ctx.roundRect(b.x, b.y, b.w, b.h, b.h / 2) : ctx.rect(b.x, b.y, b.w, b.h); ctx.stroke();
+        text(girlReady >= 6 ? (b.id === 1 ? "JUMP GIRL SHOOTING" : "JUMP GIRL") : "…", b.x + b.w / 2, b.y + b.h / 2 + .5, 11, "#ffffff");
+      }
     }
     if (mode === "over") {
       ctx.fillStyle = `rgba(10,4,20,${Math.min(.6, modeT)})`; ctx.fillRect(0, 0, W, H);
@@ -1139,10 +1159,10 @@
     if (mode === "clear") {
       const k = Math.min(1, clearT * 2);
       ctx.save(); ctx.translate(W / 2, H * .28); ctx.scale(.6 + k * .4 + Math.sin(clearT * 6) * .02, .6 + k * .4);
-      text("STAGE 1 CLEAR!", 0, 0, 20, "#ffe066", "center", "#e8304f"); ctx.restore();
+      text("STAGE CLEAR!", 0, 0, 20, "#ffe066", "center", "#e8304f"); ctx.restore();
       text("SCORE " + score, W / 2, H * .42, 9, "#ffffff");
       if (hits === 0 && clearT > .8) text("NO MISS BONUS 10000", W / 2, H * .5, 7, "#ff7bb0");
-      if (clearT > 2.5 && Math.floor(animT * 2) % 2 === 0) text("TAP FOR STAGE 2  JUMP GIRL", W / 2, H * .88, 8, "#ffffff");
+      if (clearT > 2.5 && Math.floor(animT * 2) % 2 === 0) text("TAP TO PLAY JUMP GIRL", W / 2, H * .88, 8, "#ffffff");
     }
     if (flash > 0) { ctx.globalAlpha = Math.min(.7, flash * 2); ctx.fillStyle = flashCol; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
   }
