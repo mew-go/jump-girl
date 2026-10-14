@@ -662,7 +662,7 @@
     if (!blinkOff) { ctx.fillStyle = INK; ctx.fillText(` ${pad5(shown)}`, right, scale * 3); }
 
     if (auto) { ctx.textAlign = "left"; ctx.fillStyle = INK; ctx.fillText("AUTO", scale * 4, scale * 3); }
-    if (totalPlays !== null) {   // small and grey, top left (under AUTO when that's showing): everyone's plays so far
+    if (totalPlays !== null && mode !== "run") {   // small and grey, top left; hidden while she's running: everyone's plays so far
       ctx.save(); ctx.textAlign = "left"; ctx.fillStyle = GREY;
       ctx.font = `${fs * .65}px DotGothic16, monospace`;
       ctx.fillText(`PLAYS ${totalPlays.toLocaleString("en-US")}`, scale * 4, scale * 3 + (auto ? fs * 1.2 : fs * .2));
