@@ -760,7 +760,7 @@
       else if (mode === "clear" && clearT > 2.5) goStage2();
     }
   });
-  window.addEventListener("keydown", e => { if (mode === "ready" && (e.code === "Digit1" || e.code === "Digit2")) pickStage(e.code === "Digit1" ? 2 : 1); });
+  window.addEventListener("keydown", e => { if (mode === "ready" && (e.code === "Digit1" || e.code === "Digit2" || e.code === "Digit3")) pickStage(e.code === "Digit1" ? 2 : e.code === "Digit2" ? 1 : 3); });
   window.addEventListener("keyup", e => { keys[e.code] = false; });
   document.addEventListener("visibilitychange", () => {
     if (!audio) return;
@@ -932,14 +932,17 @@
   }
 
   // ---------- stage select (title screen) ----------
-  function menuButtons() {   // top: JUMP GIRL SHOOTING, bottom: JUMP GIRL
-    const w = Math.min(W - 40, 170), h = 30, x = W / 2 - w / 2;
-    return [{ id: 1, x, y: H / 2 - h - 5, w, h }, { id: 2, x, y: H / 2 + 5, w, h }];
+  function menuButtons() {   // top: JUMP GIRL SHOOTING, middle: JUMP GIRL, bottom: JUMP GIRL DRAGON
+    const w = Math.min(W - 40, 170), h = H < 220 ? 24 : 30, gap = 5, x = W / 2 - w / 2;
+    const y0 = H / 2 - h * 1.5 - gap + (H < 220 ? 8 : 0);
+    return [1, 2, 3].map((id, i) => ({ id, x, y: y0 + i * (h + gap), w, h }));
   }
   function pickStage(n) {
     if (girlReady < 6) return;
     pressed = { id: n, t: 0 };
-    if (n === 1) start(); else goStage2();
+    if (n === 1) start();
+    else if (n === 2) goStage2();
+    else { mode = "stage2"; stopBgm(.2); location.href = "dragon.html"; }
   }
   let pressed = null;
 
@@ -959,6 +962,9 @@
     stage2El.addEventListener("load", () => { try { stage2El.contentWindow.focus(); } catch {} }, { once: true });
     setTimeout(() => { try { audio && audio.suspend(); } catch {} }, 600);
   }
+
+  // back from JUMP GIRL DRAGON (browser back / bfcache) → show the select screen again
+  window.addEventListener("pageshow", e => { if (e.persisted && mode === "stage2" && stage2El.hidden) { mode = "ready"; pressed = null; } });
 
   // JUMP GIRL cleared → straight into JUMP GIRL SHOOTING
   window.addEventListener("message", e => {
@@ -1158,7 +1164,7 @@
       for (const b of menuButtons()) {
         ctx.strokeStyle = "rgba(255,255,255,.28)"; ctx.lineWidth = .8;
         ctx.beginPath(); ctx.roundRect ? ctx.roundRect(b.x, b.y, b.w, b.h, b.h / 2) : ctx.rect(b.x, b.y, b.w, b.h); ctx.stroke();
-        text(girlReady >= 6 ? (b.id === 1 ? "JUMP GIRL SHOOTING" : "JUMP GIRL") : "…", b.x + b.w / 2, b.y + b.h / 2 + .5, 11, "#ffffff");
+        text(girlReady >= 6 ? (b.id === 1 ? "JUMP GIRL SHOOTING" : b.id === 2 ? "JUMP GIRL" : "JUMP GIRL DRAGON") : "…", b.x + b.w / 2, b.y + b.h / 2 + .5, 11, "#ffffff");
       }
     }
     if (mode === "over") {
