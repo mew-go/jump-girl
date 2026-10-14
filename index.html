@@ -156,6 +156,12 @@
     ...Array.from({ length: 30 }, () => "KK"),
   ]);
 
+  // once in a while a "cloud" turns out to be a little UFO (windows blink; zips off up and away at the end)
+  const UFO = [
+    build(["......KKKK......", ".....KWWWWK.....", "....KWWWWWWK....", "..KKKKKKKKKKKK..", ".KWWKWWKWWKWWKWK", "KWWWWWWWWWWWWWWK", ".KKKKKKKKKKKKKK.", "...K..K..K..K..."]),
+    build(["......KKKK......", ".....KWWWWK.....", "....KWWWWWWK....", "..KKKKKKKKKKKK..", ".KWWGWWKWWGWWKWK", "KWWWWWWWWWWWWWWK", ".KKKKKKKKKKKKKK.", "...G..K..G..K..."]),
+  ];
+  let cloudCount = 0;
   const CLOUD = build([
     "........KKKK..........",
     "......KKWWWWKK..KKK...",
@@ -332,15 +338,29 @@
   }
 
   // ---------- input ----------
+  // total plays by everyone (same free counter service as the clears): each run a person starts adds one.
+  // shown small at the top; if the counter can't be reached it simply isn't shown
+  const PLAY_COUNTER = "https://abacus.jasoncameron.dev/%s/mewgo-jumpgirl/plays";
+  let totalPlays = null;
+  function countPlay(add) {
+    try {
+      const ctl = new AbortController(); setTimeout(() => ctl.abort(), 5000);
+      fetch(PLAY_COUNTER.replace("%s", add ? "hit" : "get"), { signal: ctl.signal, cache: "no-store" })
+        .then(r => r.ok ? r.json() : (r.status === 404 ? { value: 0 } : null))   // not counted yet: starts at 0
+        .then(j => { if (j && typeof j.value === "number") totalPlays = j.value; })
+        .catch(() => {});
+    } catch {}
+  }
+  countPlay(false);   // show the current number as soon as the page opens
   function press() {
     unlockSilentSwitch();
     if (mode === "ready") startBgm();
-    if (mode === "ready") { mode = "run"; doJump(); return; }
+    if (mode === "ready") { mode = "run"; if (!auto) countPlay(true); doJump(); return; }
     if (mode === "over") {
-      if (overT > .45) { reset(); mode = "run"; startBgm(); }
+      if (overT > .45) { reset(); mode = "run"; startBgm(); if (!auto) countPlay(true); }
       return;
     }
-    if (mode === "goal") { if (goalT > 1.5) { reset(); mode = "run"; startBgm(); } return; }
+    if (mode === "goal") { if (goalT > 1.5) { reset(); mode = "run"; startBgm(); if (!auto) countPlay(true); } return; }
     doJump();
   }
   function doJump() {
@@ -498,8 +518,16 @@
     animT += dt;
     // clouds drift always (slower than ground)
     clouds.forEach(c => c.x -= (mode === "run" ? speed * .12 : 6) * dt);
-    clouds = clouds.filter(c => c.x > -30);
-    if (clouds.length < 2 && Math.random() < dt * .08) clouds.push({ x: W + 10, y: 6 + Math.random() * 22 });
+    clouds.forEach(c => {
+      if (!c.ufo) return;
+      c.t += dt;
+      if (c.x < W * .6) { c.boost += dt; c.x -= c.boost * 50 * dt; c.y -= c.boost * 110 * dt; }   // before reaching the middle it zips off up and away, well clear of her
+    });
+    clouds = clouds.filter(c => c.x > -30 && c.y > -14);
+    if (clouds.length < 2 && Math.random() < dt * .08) {
+      cloudCount++;
+      clouds.push({ x: W + 10, y: 6 + Math.random() * 22, ufo: cloudCount > 1 && Math.random() < 1 / 9, t: 0, boost: 0 });
+    }
 
     if (mode === "over") { overT += dt; if (auto && overT > 1.2) press(); return; }
     if (mode === "goal") { updateGoal(dt); return; }
@@ -593,7 +621,9 @@
     ax.imageSmoothingEnabled = false;
     ax.fillStyle = PAPER; ax.fillRect(0, 0, art.width, art.height);
     const put = (sp, x, y) => ax.drawImage(sp.img, sub(x), sub(y), sp.w * sp.k, sp.h * sp.k);
-    clouds.forEach(c => put(CLOUD, c.x, c.y));
+    clouds.forEach(c => c.ufo
+      ? put(UFO[Math.floor(c.t * 4) % 2], c.x, c.y + Math.sin(c.t * 3) * 1.5)
+      : put(CLOUD, c.x, c.y));
     // ground
     const gxo = -Math.round(groundX);
     ax.drawImage(groundStrip, gxo * SUB, GROUND * SUB, 400 * SUB, 6 * SUB);
@@ -632,6 +662,12 @@
     if (!blinkOff) { ctx.fillStyle = INK; ctx.fillText(` ${pad5(shown)}`, right, scale * 3); }
 
     if (auto) { ctx.textAlign = "left"; ctx.fillStyle = INK; ctx.fillText("AUTO", scale * 4, scale * 3); }
+    if (totalPlays !== null) {   // small and grey, top left (under AUTO when that's showing): everyone's plays so far
+      ctx.save(); ctx.textAlign = "left"; ctx.fillStyle = GREY;
+      ctx.font = `${fs * .65}px DotGothic16, monospace`;
+      ctx.fillText(`PLAYS ${totalPlays.toLocaleString("en-US")}`, scale * 4, scale * 3 + (auto ? fs * 1.2 : fs * .2));
+      ctx.restore();
+    }
     ctx.textAlign = "center";
     if (mode === "goal") {
       ctx.fillStyle = INK;
