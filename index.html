@@ -1023,6 +1023,28 @@
       .then(j => { if (j && typeof j.value === "number") { plays[id] = j.value; showPlays(j.value); } }).catch(() => {});
   }
 
+  // ---------- visits to this top (select) page, shared by everyone ----------
+  // one count per page load; tries fetch first, then JSONP (a <script> tag) in case the browser blocks fetch
+  const VISIT_KEY = "mew-go-jump-girl/top";
+  let topVisits = null;
+  function countVisit() {
+    const url = `https://abacus.jasoncameron.dev/hit/${VISIT_KEY}`;
+    const jsonp = () => {
+      try {
+        const name = "__visits" + Date.now(), sc = document.createElement("script");
+        window[name] = j => { if (j && typeof j.value === "number") topVisits = j.value; try { delete window[name]; } catch {} sc.remove(); };
+        sc.onerror = () => sc.remove();
+        sc.src = url + "?callback=" + name; document.head.appendChild(sc);
+      } catch {}
+    };
+    try {
+      fetch(url).then(r => r.ok ? r.json() : Promise.reject())
+        .then(j => { if (j && typeof j.value === "number") topVisits = j.value; else jsonp(); })
+        .catch(jsonp);
+    } catch { jsonp(); }
+  }
+  countVisit();
+
   // ---------- stage select (title screen) ----------
   function menuButtons() {   // SHOOTING, PUZZLE, JUMP GIRL, DRAGON, REVERSI — top to bottom
     const w = Math.min(W - 24, 182), h = H > W ? 26 : 22, gap = H > W ? 7 : 5, x = W / 2 - w / 2;
@@ -1239,6 +1261,10 @@
         text(girlReady >= 6 ? "JUMP GIRL" : "…", b.w / 2, b.h / 2 + .5, 11, "#1c1c1c", "center", "#ffffff");
       }
       ctx.restore();
+    }
+    if (topVisits !== null) {   // small and grey under the buttons: how many times this page has been opened
+      const last = bs[bs.length - 1];
+      text(topVisits.toLocaleString("en-US") + (topVisits === 1 ? " VISIT" : " VISITS"), W / 2, last.y + last.h + 10, 6.5, "#9a9a9a", "center", "#ffffff");
     }
   }
   // ================= draw =================
