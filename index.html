@@ -216,6 +216,10 @@
   const CAM_RED = sprite(grid(FLOWER_ROWS, { K: "#7a1030", W: "#ff4766", w: "#e8304f", s: "#c41e44", Y: "#ffe050", y: "#fffac8", O: "#e88c1e" }), 0.7);
   const CAM_BLACK = sprite(grid(FLOWER_ROWS, { K: "#0d0d0d", W: "#2a2a2a", w: "#1c1c1c", s: "#7a7a7a", Y: "#f0b429", y: "#fff1b8", O: "#b77d0c" }), 0.5);
   const CAM_WHITE_S = sprite(grid(FLOWER_ROWS, { K: "#1c1c1c", W: "#ffffff", w: "#ebe8e2", s: "#a3a09a", Y: "#f0b429", y: "#fff1b8", O: "#c48a12" }), 0.5);
+  // the select screen's flowers stand on a stem with leaves (a camellia head lying on the ground is unlucky)
+  const STEM_ROWS = [".......KWK.......", "...KKK.KWK.......", "..KGGGKKWK..KKK..", "..KGGGGKWKKGGGK..", "...KKGGKWKGGGGK..", ".....KKKWKGGKK...", ".......KWKKK.....", ".......KWK.......", ".......KWK......."];
+  const CAM_MONO_STEM = sprite(grid([...FLOWER_ROWS, ...STEM_ROWS], { K: "#1c1c1c", W: "#ffffff", w: "#e6e6e6", s: "#9a9a9a", Y: "#ffffff", y: "#ffffff", O: "#1c1c1c", G: "#d6d6d6" }), 0.7);
+  const CAM_MONO_STEM_S = { ...CAM_MONO_STEM, k: .48, w: CAM_MONO_STEM.img.width * .48, h: CAM_MONO_STEM.img.height * .48 };
   const CAM_MONO = sprite(grid(FLOWER_ROWS, { K: "#1c1c1c", W: "#ffffff", w: "#e6e6e6", s: "#9a9a9a", Y: "#ffffff", y: "#ffffff", O: "#1c1c1c" }), 0.7);
   const HEART = sprite(grid(outlined([
     ".PP.PP.",
@@ -1159,7 +1163,7 @@
     for (let i = 0; i < 9; i++) ctx.fillRect(((i * 41 - animT * 18) % (W + 20) + W + 20) % (W + 20) - 10, gy + 3 + (i % 3), 1, .8);
     for (let i = 0; i < 5; i++) {
       const fx = ((i * W / 4.2 - animT * 18) % (W + 30) + W + 30) % (W + 30) - 15;
-      drawSpr(CAM_MONO, fx, gy - CAM_MONO.h / 2 + .5);
+      drawSpr(CAM_MONO_STEM, fx, gy - CAM_MONO_STEM.h / 2 + .5);
     }
   }
   function drawMenuTitle(cx, y) {
@@ -1255,16 +1259,16 @@
         const gy = b.h - 6;
         ctx.fillStyle = "#1c1c1c";
         for (let x = -((animT * 40) % 9); x < b.w; x += 9) ctx.fillRect(x, gy, 6.5, .8);
-        for (let i = 0; i < 3; i++) { const fx = b.w - (((animT * 40) + i * 55) % (b.w + 20)) + 10; drawSpr(CAM_MONO, fx, gy - CAM_MONO.h / 2 + .5); }
+        for (let i = 0; i < 3; i++) { const fx = b.w - (((animT * 40) + i * 55) % (b.w + 20)) + 10; drawSpr(CAM_MONO_STEM_S, fx, gy - CAM_MONO_STEM_S.h / 2 + .5); }
         ctx.restore();
         ctx.strokeStyle = "#1c1c1c"; ctx.lineWidth = 1.2; rr(0, 0, b.w, b.h, r); ctx.stroke();
         text(girlReady >= 6 ? "JUMP GIRL" : "…", b.w / 2, b.h / 2 + .5, 11, "#1c1c1c", "center", "#ffffff");
       }
       ctx.restore();
     }
-    if (topVisits !== null) {   // small and grey under the buttons: how many times this page has been opened
-      const last = bs[bs.length - 1];
-      text(topVisits.toLocaleString("en-US") + (topVisits === 1 ? " VISIT" : " VISITS"), W / 2, last.y + last.h + 10, 6.5, "#9a9a9a", "center", "#ffffff");
+    if (topVisits !== null) {   // small and grey at the very bottom: how many times this page has been opened
+      // below the ground line, clear of the flowers
+      text(topVisits.toLocaleString("en-US") + (topVisits === 1 ? " VISIT" : " VISITS"), W / 2, H - 5, 6.5, "#9a9a9a", "center", "#ffffff");
     }
   }
   // ================= draw =================
